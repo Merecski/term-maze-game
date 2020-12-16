@@ -39,25 +39,39 @@ class Maze:
         self.grid = []
 
     def __str__(self):
-        string = '  ' * self.start[1] + 'S\n'
-        for row in self.grid:
+        return self.gridToString(self.grid)
+
+    def gridToString(self, grid):
+        string = '\033[1m  ' * self.start[1] + 'S\n'
+        for row in grid:
             tmp = ''
             for cell in row:
-                tmp += gui_encode[cell.walls ^ 0b1111]
+                if cell.solution:
+                    tmp += '\033[34m' + gui_encode[cell.walls ^ 0b1111] + '\033[0m'
+                else:
+                    tmp += gui_encode[cell.walls ^ 0b1111]
             string += tmp + '\n'
         string += '  ' * self.end[1] + 'E'
         return string
+
+    @property
+    def start_node(self):
+        return self.returnCell(self.start)
+
+    @property
+    def end_node(self):
+        return self.returnCell(self.end)
 
     def returnCell(self, pos):
         return self.grid[pos[0]][pos[1]]
 
     def algorithmInit(self):
-        root = self.returnCell(self.start)
+        root = self.start_node
         root.knockWalls(0b1000)
         main_cell_stack = [root]
         while main_cell_stack:
             cell = random.choice(main_cell_stack)
-            if cell.hasNeighbors():
+            if cell.hasEmptyNeighbors():
                 main_cell_stack += (self.algorithmShortWalk(cell))
             else:
                 main_cell_stack.remove(cell)
@@ -66,7 +80,7 @@ class Maze:
         max_trail = 2 * self.size // 3
         cell_stack = [root]
         while cell_stack and len(cell_stack) < max_trail:
-            free_cells = cell_stack[-1].hasNeighbors()
+            free_cells = cell_stack[-1].hasEmptyNeighbors()
             curr_cell = cell_stack[-1]
             if free_cells:
                 if self.animate:
@@ -74,7 +88,7 @@ class Maze:
                     time.sleep(self.animate_fps)
                 face, next_cell = random.choice(free_cells)
                 curr_cell.knockWalls(face)
-                if next_cell == self.returnCell(self.end):
+                if next_cell == self.end_node:
                     next_cell.knockWalls(0b0100)
                     return cell_stack
                 else:
@@ -109,20 +123,54 @@ class Maze:
                 grid[y][x].setNeighbor(0b0010, self.indexGrid(grid, y, x - 1))
                 grid[y][x].setNeighbor(0b0001, self.indexGrid(grid, y, x + 1))
 
+    def findSolution(self):
+        solution = [self.start_node]
+        self.findSolutionStep(solution)
+        for cell in solution:
+            cell.solution = True
+        return solution
+
+    def findSolutionStep(self, solution_stack):
+        for cell in solution_stack[-1].hasOpenNeighbor():
+            if cell not in solution_stack:
+                if cell == self.end_node:
+                    solution_stack.append(cell)
+                    return True
+                elif not cell.deadEnd():
+                    solution_stack.append(cell)
+                    if self.findSolutionStep(solution_stack):
+                        return True
+        solution_stack.pop()
+        return False
 
 class Cell:
     def __init__(self):
         self.walls = 0b1111
         self.neighbors = {}
+        self.solution = False
+
+    def deadEnd(self):
+        count = 0
+        for shift in range(4):
+            if 0 == self.walls & 1 << (shift):
+                count += 1
+        return (count < 2)
 
     def setNeighbor(self, face, cell):
         if cell: self.neighbors[face] = cell
 
-    def hasNeighbors(self):
+    def hasEmptyNeighbors(self):
         avaliable = []
         for face, cell in self.neighbors.items():
             if cell.isEmpty():
                 avaliable.append((face, cell))
+        return avaliable
+
+    def hasOpenNeighbor(self):
+        avaliable = []
+        for face, cell in self.neighbors.items():
+            if face & self.walls == 0:
+                avaliable.append(cell)
         return avaliable
 
     def isEmpty(self):
@@ -148,4 +196,5 @@ if __name__ == '__main__':
     m = Maze(size, animate_fps)
     try: m.generateMaze()
     except KeyboardInterrupt: pass
+    m.findSolution()
     print(m)
