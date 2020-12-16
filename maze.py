@@ -33,42 +33,32 @@ class Maze:
     def __init__(self, size, animate_fps=0):
         self.animate = (animate_fps > 0)
         self.animate_fps = animate_fps
-        self.size = size
-        self.start = (0, random.randint(0, self.size - 1))
-        self.end =   (self.size - 1, random.randint(0, self.size - 1))
+        self.end = None
         self.grid = []
+        self.size = size
+        self.start = None
 
     def __str__(self):
-        return self.gridToString(self.grid)
+        return self.gridToStr(self.grid)
 
-    def gridToString(self, grid):
-        string = '\033[1m  ' * self.start[1] + 'S\n'
-        for row in grid:
-            tmp = ''
-            for cell in row:
-                if cell.solution:
-                    tmp += '\033[34m' + gui_encode[cell.walls ^ 0b1111] + '\033[0m'
-                else:
-                    tmp += gui_encode[cell.walls ^ 0b1111]
-            string += tmp + '\n'
-        string += '  ' * self.end[1] + 'E'
-        return string
+    @property
+    def formatted(self):
+        return self.formattedStr(self.grid)
+
+    @property
+    def solution(self):
+        return self.formattedStr(self.grid, view_solution=True)
 
     @property
     def start_node(self):
-        return self.returnCell(self.start)
+        return self.grid[self.start[0]][self.start[1]]
 
     @property
     def end_node(self):
-        return self.returnCell(self.end)
-
-    def returnCell(self, pos):
-        return self.grid[pos[0]][pos[1]]
+        return self.grid[self.end[0]][self.end[1]]
 
     def algorithmInit(self):
-        root = self.start_node
-        root.knockWalls(0b1000)
-        main_cell_stack = [root]
+        main_cell_stack = [random.choice(self.grid[0])]
         while main_cell_stack:
             cell = random.choice(main_cell_stack)
             if cell.hasEmptyNeighbors():
@@ -84,50 +74,27 @@ class Maze:
             curr_cell = cell_stack[-1]
             if free_cells:
                 if self.animate:
-                    print(str(self) + '\n' + '\033[' + str(self.size +3) + 'F')
+                    print(str(self) + '\n' + '\033[' + str(self.size + 3) + 'F')
                     time.sleep(self.animate_fps)
                 face, next_cell = random.choice(free_cells)
                 curr_cell.knockWalls(face)
-                if next_cell == self.end_node:
-                    next_cell.knockWalls(0b0100)
-                    return cell_stack
-                else:
-                    cell_stack.append(next_cell)
+                cell_stack.append(next_cell)
             else:
                 cell_stack.pop()
         return cell_stack
 
-    def indexGrid(self, grid, y, x):
-        if (y < 0 or x < 0) or (y >= len(grid) or x >= len(grid)):
-            return None
-        else:
-            return grid[y][x]
-
-    def generateBlank(self, grid):
-        for y in range(self.size):
-            tmp = []
-            for x in range(self.size):
-                tmp.append(Cell())
-            grid.append(tmp)
-
-    def generateMaze(self):
-        self.generateBlank(self.grid)
-        self.linkCells(self.grid, self.size)
-        self.algorithmInit()
-
-    def linkCells(self, grid, size):
-        for y in range(size):
-            for x in range(size):
-                grid[y][x].setNeighbor(0b1000, self.indexGrid(grid, y - 1, x))
-                grid[y][x].setNeighbor(0b0100, self.indexGrid(grid, y + 1, x))
-                grid[y][x].setNeighbor(0b0010, self.indexGrid(grid, y, x - 1))
-                grid[y][x].setNeighbor(0b0001, self.indexGrid(grid, y, x + 1))
+    def findLongestSolution(self):
+        longest = []
+        for x in range(0, self.size - 1, 2):
+            self.end = (self.size - 1, x)
+            longest = max(self.findSolution(), longest, key=len)
+        for cell in longest:
+            cell.solution = True
+        self.setEndCell(self.grid[-1].index(longest[-1]))
 
     def findSolution(self):
         solution = [self.start_node]
         self.findSolutionStep(solution)
-        for cell in solution:
-            cell.solution = True
         return solution
 
     def findSolutionStep(self, solution_stack):
@@ -142,6 +109,73 @@ class Maze:
                         return True
         solution_stack.pop()
         return False
+
+    def generateBlank(self, grid):
+        for y in range(self.size):
+            tmp = []
+            for x in range(self.size):
+                tmp.append(Cell())
+            grid.append(tmp)
+
+    def generateMaze(self):
+        self.grid = []
+        self.generateBlank(self.grid)
+        self.linkCells(self.grid, self.size)
+        self.algorithmInit()
+        self.setStartCell()
+        self.findLongestSolution()
+
+    def formattedStr(self, grid, view_solution=False):
+        string = '  ' * self.start[1] + 'S ' + '  ' * (self.size - self.start[1] - 1)
+        for row in grid:
+            tmp = '\n'
+            for cell in row:
+                if cell.solution and view_solution:
+                    tmp += '\033[34m' + gui_encode[cell.walls ^ 0b1111] + '\033[0m'
+                else:
+                    tmp += gui_encode[cell.walls ^ 0b1111]
+            string += tmp
+        string += '\n' + '  ' * self.end[1] + 'E ' + '  ' * (self.size - self.end[1] - 1)
+        return string
+
+
+    def gridToStr(self, grid):
+        string = ''
+        for row in grid:
+            tmp = ''
+            for cell in row:
+                 tmp += gui_encode[cell.walls ^ 0b1111]
+            string += tmp + '\n'
+        return string
+
+    def indexGrid(self, grid, y, x):
+        if (y < 0 or x < 0) or (y >= len(grid) or x >= len(grid)):
+            return None
+        else:
+            return grid[y][x]
+
+    def linkCells(self, grid, size):
+        for y in range(size):
+            for x in range(size):
+                grid[y][x].setNeighbor(0b1000, self.indexGrid(grid, y - 1, x))
+                grid[y][x].setNeighbor(0b0100, self.indexGrid(grid, y + 1, x))
+                grid[y][x].setNeighbor(0b0010, self.indexGrid(grid, y, x - 1))
+                grid[y][x].setNeighbor(0b0001, self.indexGrid(grid, y, x + 1))
+
+    def run(self):
+        self.generateMaze()
+        self.findLongestSolution()
+
+    def setEndCell(self, x_pos=None):
+        if x_pos:
+            self.end = (size - 1, x_pos)
+        else:
+            self.end = (self.size - 1, random.randint(0, self.size - 1))
+        self.end_node.knockWalls(0b0100)
+
+    def setStartCell(self):
+        self.start = (0, random.randint(0, self.size - 1))
+        self.start_node.knockWalls(0b1000)
 
 class Cell:
     def __init__(self):
@@ -186,6 +220,26 @@ class Cell:
             self.neighbors[wall].walls ^= inv_wall
 
 
+def simulateLongestSolution(maze):
+    for row in maze.grid:
+        for cell in row:
+            cell.solution = False
+    for x in range(0, maze.size, 2):
+        maze.end = (maze.size - 1, x)
+        maze.end_node.knockWalls(0b0100)
+        solution = maze.findSolution()
+        for cell in solution:
+            cell.solution = True
+        print(str(maze.solution) + '\033[' + str(maze.size + 2) + 'F')
+        maze.end_node.walls |= 0b0100
+        for cell in solution:
+            cell.solution = False
+        time.sleep(1 / maze.size)
+    maze.findLongestSolution()
+    print(maze.solution)
+    time.sleep(0.5)
+
+
 if __name__ == '__main__':
     size = 10
     animate_fps = 0
@@ -194,7 +248,6 @@ if __name__ == '__main__':
         animate_fps = float(sys.argv[2])
     except IndexError: pass
     m = Maze(size, animate_fps)
-    try: m.generateMaze()
+    try: m.run()
     except KeyboardInterrupt: pass
-    m.findSolution()
-    print(m)
+    simulateLongestSolution(m)
