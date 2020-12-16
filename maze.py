@@ -30,7 +30,9 @@ gui_encode = {
 
 
 class Maze:
-    def __init__(self, size):
+    def __init__(self, size, animate_fps=0):
+        self.animate = (animate_fps > 0)
+        self.animate_fps = animate_fps
         self.size = size
         self.start = (0, random.randint(0, self.size - 1))
         self.end =   (self.size - 1, random.randint(0, self.size - 1))
@@ -51,7 +53,7 @@ class Maze:
 
     def algorithmInit(self):
         root = self.returnCell(self.start)
-        root.knockWall(0b1000)
+        root.knockWalls(0b1000)
         main_cell_stack = [root]
         while main_cell_stack:
             cell = random.choice(main_cell_stack)
@@ -67,10 +69,13 @@ class Maze:
             free_cells = cell_stack[-1].hasNeighbors()
             curr_cell = cell_stack[-1]
             if free_cells:
+                if self.animate:
+                    print(str(self) + '\n' + '\033[' + str(self.size +3) + 'F')
+                    time.sleep(self.animate_fps)
                 face, next_cell = random.choice(free_cells)
-                curr_cell.knockWall(face)
+                curr_cell.knockWalls(face)
                 if next_cell == self.returnCell(self.end):
-                    next_cell.knockWall(0b0100)
+                    next_cell.knockWalls(0b0100)
                     return cell_stack
                 else:
                     cell_stack.append(next_cell)
@@ -84,17 +89,15 @@ class Maze:
         else:
             return grid[y][x]
 
-    def generateBlank(self):
-        grid = []
+    def generateBlank(self, grid):
         for y in range(self.size):
             tmp = []
             for x in range(self.size):
                 tmp.append(Cell())
             grid.append(tmp)
-        return grid
 
     def generateMaze(self):
-        self.grid = self.generateBlank()
+        self.generateBlank(self.grid)
         self.linkCells(self.grid, self.size)
         self.algorithmInit()
 
@@ -109,7 +112,6 @@ class Maze:
 
 class Cell:
     def __init__(self):
-        self.pos = (0,0)
         self.walls = 0b1111
         self.neighbors = {}
 
@@ -126,7 +128,7 @@ class Cell:
     def isEmpty(self):
         return self.walls == 0b1111
 
-    def knockWall(self, wall):
+    def knockWalls(self, wall):
         self.walls ^= wall
         if wall > 0b0010:
             inv_wall = 0b1100 ^ wall
@@ -137,10 +139,13 @@ class Cell:
 
 
 if __name__ == '__main__':
+    size = 10
+    animate_fps = 0
     try:
         size = int(sys.argv[1])
-    except:
-        size = 10
-    m = Maze(size)
-    m.generateMaze()
+        animate_fps = float(sys.argv[2])
+    except IndexError: pass
+    m = Maze(size, animate_fps)
+    try: m.generateMaze()
+    except KeyboardInterrupt: pass
     print(m)
