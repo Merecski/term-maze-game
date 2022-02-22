@@ -126,23 +126,24 @@ class Maze:
         self.findLongestSolution()
 
     def formattedStr(self, grid, view_solution=False):
-        string = '  ' * self.start[1] + 'S ' + '  ' * (self.size - self.start[1] - 1)
+        string = '  ' # Gives a little space from edge of terminal
+        string += '  ' * self.start[1] + 'S ' + '  ' * (self.size - self.start[1] - 1)
         for row in grid:
-            tmp = '\n'
+            tmp = '\n  ' # Same extra space
             for cell in row:
                 if cell.solution and view_solution:
                     tmp += '\033[34m' + gui_encode[cell.walls ^ 0b1111] + '\033[0m'
                 else:
                     tmp += gui_encode[cell.walls ^ 0b1111]
             string += tmp
-        string += '\n' + '  ' * self.end[1] + 'E ' + '  ' * (self.size - self.end[1] - 1)
+        string += '\n  ' + '  ' * self.end[1] + 'E ' + '  ' * (self.size - self.end[1] - 1)
         return string
 
 
     def gridToStr(self, grid):
         string = ''
         for row in grid:
-            tmp = ''
+            tmp = '  ' # Give a little space from edge of terminal
             for cell in row:
                  tmp += gui_encode[cell.walls ^ 0b1111]
             string += tmp + '\n'
@@ -234,7 +235,7 @@ def simulateLongestSolution(maze):
         maze.end_node.walls |= 0b0100
         for cell in solution:
             cell.solution = False
-        time.sleep(1 / maze.size)
+        time.sleep(4 / maze.size)
     maze.findLongestSolution()
     print(maze.solution)
     time.sleep(0.5)
@@ -242,7 +243,7 @@ def simulateLongestSolution(maze):
 
 if __name__ == '__main__':
     size = 10
-    animate_fps = 0
+    animate_fps = 0.005
     try:
         size = int(sys.argv[1])
         animate_fps = float(sys.argv[2])
